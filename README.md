@@ -1,4 +1,5 @@
 # Native16 GLIGEN
+[English](README.md) | [中文](README.zh-CN.md)
 
 Reproducible training and inference for **box-conditioned, radiometrically meaningful 16-bit thermal diffusion**. This repository is an independent code extraction: it packages the Native16 branch, its configuration contract, tests, and command-line entry points without importing the parent experiment repository at runtime.
 
