@@ -1,0 +1,141 @@
+# Multi-dataset composition for bbox-conditioned thermal training.
+# Only roots with real or explicitly generated bbox provenance are included.
+schema_version: 1
+global_state:
+  flir_root: ${FLIR_ROOT}
+  ltir_root: ${LTIR_ROOT}
+  zut_root: ${ZUT_ROOT}
+  ms2_root: ${MS2_ROOT}
+  ms2_annotation_root: ${MS2_ANNOTATION_ROOT}
+  vivid_annotation_root: ${VIVID_ANNOTATION_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: torch.utils.data.ConcatDataset
+    datasets:
+      - _class_name: dwm.datasets.flir.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: flir_root
+        split: train
+        modality: thermal
+        view_mode: single
+        sequence_length: 25
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 30.0
+        bbox_policy: any
+        min_box_count: 1
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: false
+      - _class_name: dwm.datasets.ltir_v1.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: ltir_root
+        mode: 16bit
+        sequence_length: 25
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 25.0
+        bbox_policy: any
+        min_box_count: 1
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.zut_fir_adas.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: zut_root
+        frame_directory: 16BitFrames
+        split: train
+        countries: [Denmark, Germany, Lithuania, Poland]
+        sequence_length: 25
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 25.0
+        bbox_policy: any
+        min_box_count: 1
+        include_empty_frames: true
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.ms2.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: ms2_root
+        annotation_root:
+          _class_name: dwm.common.get_state
+          key: ms2_annotation_root
+        records_file: records.jsonl
+        accepted_statuses: [accepted_highconf]
+        min_score: 0.75
+        sequence_length: 25
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 10.0
+        bbox_policy: any
+        min_box_count: 1
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      # - _class_name: dwm.datasets.vivid_pp.MotionDataset
+      #   annotation_root:
+      #     _class_name: dwm.common.get_state
+      #     key: vivid_annotation_root
+      #   modality: thermal
+      #   view_mode: single
+      #   accepted_statuses: [accepted]
+      #   min_score: 0.75
+      #   box_keys: [bbox_thr_lidar_xyxy, bbox_thr_geometry_xyxy, bbox_thr_unexpanded_xyxy, bbox_thr_xyxy]
+      #   sequence_length: 25
+      #   fps_stride_tuples: [[0.0, 1.0]]
+      #   source_fps: 30.0
+      #   bbox_policy: any
+      #   min_box_count: 1
+      #   return_annotations: true
+      #   bbox_condition_settings: {pen_width: 2}
+      #   normalize_uint16: true
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 2
+  persistent_workers: true
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. 这是多数据集拼接入口，先分别构造 FLIR、LTIR、ZUT、MS2、VIVID++
+#    的单数据集 loader，再由 ConcatDataset 组合；每个子集仍保留自己的
+#    bbox 过滤和时间采样规则。
+# 2. 组合中只放 thermal 单视角数据，因此所有样本都能统一成
+#    [B,T,1,C,H,W]；Adapter 将 C=1 的图像与 C=3 的 bbox condition
+#    resize 到相同空间尺寸。
+# 3. MS2/VIVID++ 指向生成标注目录，不能把它们替换成没有 bbox 的 raw 根目录；
+#    firestereo、lynred_mobility、tartanrgbt 因无可用 bbox 被有意排除。
+# 4. 想研究单个数据集时使用对应的单配置；想验证跨数据集 batch 时运行本
+#    配置，并检查输出的 dataset 字段和统一 Tensor shape。
+# 5. 需要改变采样比例时，应在这里替换为 common.ConcatMotionDataset 并显式
+#    指定 ratios，不要在各个 loader 内复制或修改样本。
+# 6. 演示：设置六个 *_ROOT 环境变量后运行
+#    PYTHONPATH=src python scripts/prepare/load_dataset_config.py
+#    --cfg configs/datasets/multi_bbox.yaml --loader --batches 8

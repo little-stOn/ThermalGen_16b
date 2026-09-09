@@ -1,0 +1,76 @@
+paths:
+  data_dir: /inspire/hdd/project/wuliqifa/chenxinyan-240108120066/songbur/sam3-eval/model_clip_unpacked
+  sam3_repo: /inspire/hdd/project/wuliqifa/chenxinyan-240108120066/songbur/sam3-eval/sam3
+  checkpoint: /inspire/hdd/project/wuliqifa/chenxinyan-240108120066/songbur/sam3-eval/sam3.1/sam3.1_multiplex.pt
+  output_dir: /inspire/hdd/project/wuliqifa/chenxinyan-240108120066/songbur/sam3-eval/output_mask_iou
+
+sources:
+  real:
+    type: unpacked_rgb
+  # generated:
+  #   type: image_dir
+  #   image_dir: /path/to/generated/images
+
+model:
+  version: sam3.1
+  prompts:
+    - car
+    - truck
+  confidence_threshold: 0.25
+  batch_size: 2
+  loader_workers: 4
+  precision: bfloat16
+  input_resolution: 1008
+  save_masks: true
+  mask_resolution: 256
+  mask_threshold: 0.5
+  max_detections_per_prompt: 100
+  max_detections_per_image: 150
+  nms_iou_threshold: 0.70
+  checkpoint_minimum_coverage: 0.95
+  checkpoint_mmap: true
+
+annotation:
+  classes:
+    - CAR
+    - TRUCK
+  near_plane: 0.10
+  min_projected_height_px: 8.0
+  min_projected_area_px: 64.0
+  min_in_frame_fraction: 0.10
+
+visibility:
+  # GT 可见像素占投影 3D 框像素的比例低于该值时，不进入召回率分母。
+  min_gt_visible_ratio: 0.15
+  # 防止只剩零星像素的 GT 进入评估。
+  min_gt_visible_connected_pixels: 4
+
+matching:
+  # 使用 GT 投影多边形的可见 mask 与 SAM 实例 mask 计算 IoU。
+  min_mask_iou: 0.05
+  max_center_error_norm: 0.80
+  max_scale_error_log: 1.20
+  max_cost: 1.10
+  cost_mask_iou: 0.65
+  cost_center: 0.20
+  cost_bottom: 0.05
+  cost_scale: 0.10
+
+  # 每帧取有效 GT 的最小连通像素数作为 SAM mask 的最小面积。
+  # SAM 最大连通区域小于该值时，直接过滤，不进入 precision 分母。
+  allow_bbox_mask_fallback: false
+
+visualization:
+  enabled: true
+  max_frames_per_source: 50
+  image_quality: 92
+  mask_alpha: 0.25
+  draw_cuboid: true
+  draw_detection_box: true
+  draw_filtered_small_sam: true
+
+runtime:
+  seed: 3407
+  backend: sam3.1
+  limit_frames: 0
+  overwrite: true

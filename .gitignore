@@ -1,18 +1,31 @@
+# Datasets, generated annotations and run artifacts
+/data/
+/checkpoints/
+/outputs/
+/logs/
+# Local environments and bundled binary runtimes
+/.venv*/
+/venv/
+/tools/vivid_pp_runtime/
+/tools/vivid_pp_cv2_py310/
+# Caches and local secrets
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
 .ruff_cache/
-.venv/
-*.egg-info/
-
-configs/local/server.env
-artifacts/
-outputs/
-logs/
-wandb/
-
+.dwm_cache/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Model weights
 *.pt
+*.pth
 *.ckpt
 *.safetensors
-*.tiff
-*.tif
+# Packaging
+*.egg-info/
+/build/
+/dist/

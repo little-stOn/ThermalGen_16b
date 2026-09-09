@@ -1,0 +1,64 @@
+# FLIR ADAS v2 thermal COCO sequence configuration.
+schema_version: 1
+global_state:
+  flir_root: ${FLIR_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.flir.MotionDataset
+    dataset_root:
+      _class_name: dwm.common.get_state
+      key: flir_root
+    split: train
+    modality: thermal
+    view_mode: single
+    sequence_length: 4
+    fps_stride_tuples: [[0.0, 1.0]]
+    source_fps: 30.0
+    bbox_policy: any
+    min_box_count: 1
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+    normalize_uint16: false
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. FLIR_ROOT 指向 flir 或 FLIR_ADAS_v2 根目录；dataset_root 通过
+#    global_state 注入，避免 loader 自己猜测外部路径。
+# 2. 当前配置选择 thermal train 的单视角数据。要使用官方 RGB/thermal
+#    配对，应改用 split=test、view_mode=multiview，并保留配对 map。
+# 3. bbox_policy=any 保证每个 clip 至少有 bbox；需要每帧都有框时改成 all。
+# 4. Adapter 把原始灰度图和 bbox condition 统一 resize 到 256×256，再转换
+#    为 vae_images 与 box_condition_images；loader 不重复做模型 transform。
+# 5. 演示：FLIR_ROOT=/path/to/flir PYTHONPATH=src python
+#    scripts/prepare/load_dataset_config.py --cfg configs/datasets/flir.yaml
+#    --loader --batches 8

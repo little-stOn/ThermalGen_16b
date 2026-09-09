@@ -57,6 +57,37 @@ examples/native16_sample_requests.json  # request schema example
 tests/                                  # fast unit and configuration contracts
 ```
 
+## Model-agnostic thermal video pipeline
+
+`src/dwm/pipelines/` provides the complete training/inference lifecycle without
+embedding the production model.  `ThermalVideoBatch.from_loader` adapts the
+current loader fields (`vae_images`, `box_condition_images`, nested annotations,
+`box_image_sizes`, and `pts`) to the canonical `[B,T,V,...]` contract.  Declared
+second- or millisecond-based timestamps are normalized to seconds; legacy
+batches without `pts_unit` are interpreted as seconds.  Pixel boxes remain
+paired with their original `[height, width]`.
+
+The future model integration implements `ThermalVideoModel` and receives the
+whole `[B,T,V]` clip in `forward_video`.  The pipeline owns diffusion
+training, valid-unit weighted accumulation, distributed reduction, classifier-
+free guidance, preview/evaluation callbacks, and update-boundary checkpoints.
+Codec details and TIFF/video writing stay behind the injected model and
+`VideoWriter`; no concrete new-model implementation is included.
+
+```python
+from dwm.common import load_pipeline_from_config
+
+pipeline, config = load_pipeline_from_config(
+    "/path/to/pipeline.yaml",
+    model=new_video_model,
+    optimizer=optimizer,
+)
+```
+
+The configuration's `pipeline._class_name` points to
+`dwm.pipelines.ThermalVideoPipeline`; runtime dependencies are injected so the
+model-specific interface remains separate from dataset orchestration.
+
 ## Installation
 
 Use Python 3.10+ and install a CUDA-compatible PyTorch build first. The project intentionally does not pin `torch` because the correct wheel depends on the CUDA driver and platform.

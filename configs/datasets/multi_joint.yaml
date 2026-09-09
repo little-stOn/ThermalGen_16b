@@ -1,0 +1,188 @@
+# Joint dataset: all style clips plus available bbox supervision.
+schema_version: 1
+global_state:
+  butiv_root: ${BUTIV_ROOT}
+  flir_root: ${FLIR_ROOT}
+  ltir_root: ${LTIR_ROOT}
+  zut_root: ${ZUT_ROOT}
+  ms2_root: ${MS2_ROOT}
+  ms2_annotation_root: ${MS2_ANNOTATION_ROOT}
+  vivid_root: ${VIVID_ROOT}
+  vivid_annotation_root: ${VIVID_ANNOTATION_ROOT}
+  lynred_root: ${LYNRED_ROOT}
+  tartan_root: ${TARTAN_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: torch.utils.data.ConcatDataset
+    datasets:
+      - _class_name: dwm.datasets.butiv.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: butiv_root
+        split: all
+        sequence_length: 4
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 30.0
+        max_frames_per_sequence: 256
+        annotation_mode: optional
+        include_empty_frames: true
+        return_annotations: true
+      - _class_name: dwm.datasets.flir.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: flir_root
+        split: train
+        modality: thermal
+        view_mode: single
+        sequence_length: 4
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 30.0
+        annotation_mode: optional
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: false
+      - _class_name: dwm.datasets.ltir_v1.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: ltir_root
+        mode: all
+        sequence_length: 4
+        max_frames_per_sequence: 256
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 25.0
+        annotation_mode: optional
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.zut_fir_adas.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: zut_root
+        frame_directory: 16BitFrames
+        split: all
+        sequence_length: 4
+        max_frames_per_sequence: 256
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 25.0
+        annotation_mode: optional
+        include_empty_frames: true
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.ms2.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: ms2_root
+        annotation_root:
+          _class_name: dwm.common.get_state
+          key: ms2_annotation_root
+        records_file: records.jsonl
+        accepted_statuses: [accepted_highconf]
+        min_score: 0.75
+        sequence_length: 4
+        max_frames_per_sequence: 256
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 10.0
+        annotation_mode: optional
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.vivid_pp.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: vivid_root
+        annotation_root:
+          _class_name: dwm.common.get_state
+          key: vivid_annotation_root
+        modality: thermal
+        view_mode: single
+        subsets: [driving_full, driving_vision, handheld_indoor, handheld_outdoor]
+        max_frames_per_bag: 256
+        accepted_statuses: [accepted]
+        min_score: 0.75
+        box_keys: [bbox_thr_lidar_xyxy, bbox_thr_geometry_xyxy, bbox_thr_unexpanded_xyxy, bbox_thr_xyxy]
+        sequence_length: 4
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 30.0
+        annotation_mode: optional
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.vivid_pp.MotionDataset
+        annotation_root:
+          _class_name: dwm.common.get_state
+          key: vivid_annotation_root
+        modality: thermal
+        view_mode: single
+        accepted_statuses: [accepted]
+        min_score: 0.75
+        box_keys: [bbox_thr_lidar_xyxy, bbox_thr_geometry_xyxy, bbox_thr_unexpanded_xyxy, bbox_thr_xyxy]
+        sequence_length: 4
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 30.0
+        annotation_mode: required
+        return_annotations: true
+        bbox_condition_settings: {pen_width: 2}
+        normalize_uint16: true
+      - _class_name: dwm.datasets.lynred_mobility.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: lynred_root
+        bit_depth: 16bits
+        resolution: vga
+        sequence_length: 4
+        max_frames_per_sequence: 256
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 30.0
+        annotation_mode: optional
+        return_annotations: true
+        normalize_uint16: true
+      - _class_name: dwm.datasets.tartanrgbt.MotionDataset
+        dataset_root:
+          _class_name: dwm.common.get_state
+          key: tartan_root
+        camera: left
+        view_mode: single
+        sequence_length: 4
+        max_frames_per_sequence: 256
+        fps_stride_tuples: [[0.0, 1.0]]
+        source_fps: 10.0
+        annotation_mode: optional
+        return_annotations: true
+        normalize_uint16: true
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 2
+  persistent_workers: true
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：joint 只使用一套 dataset.py；有标注的数据设为 optional，
+# 无标注数据也进入同一个 batch，但 bbox_available/condition_valid 为 False。
+# VIVID raw 与生成 bbox artifact 各保留一个入口，避免为了匹配稀疏生成帧而
+# 无界扫描全部 bag；二者仍然调用同一个 VIVID MotionDataset。

@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug BU-TIV Mix Loader",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv-butiv/bin/python",
+      "program": "${workspaceFolder}/scripts/prepare/visualize_dataset_batch.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "BUTIV_ROOT": "/inspire/qb-ilm/project/wuliqifa/public/mayilin/ir_dwm_base/data/raw/bu_tiv"
+      },
+      "args": [
+        "--cfg",
+        "configs/datasets/multi_bbox.yaml",
+        "--batches",
+        "1",
+        "--max-samples-per-batch",
+        "0",
+        "--output-dir",
+        "outputs/debug_butiv_mix"
+      ]
+    },
+    {
+      "name": "Debug BU-TIV Fixed Loader",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv-butiv/bin/python",
+      "program": "${workspaceFolder}/scripts/prepare/visualize_dataset_batch.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "BUTIV_ROOT": "/inspire/qb-ilm/project/wuliqifa/public/mayilin/ir_dwm_base/data/raw/bu_tiv"
+      },
+      "args": [
+        "--cfg",
+        "configs/datasets/butiv.yaml",
+        "--batches",
+        "1",
+        "--max-samples-per-batch",
+        "0",
+        "--output-dir",
+        "outputs/debug_butiv_fixed"
+      ]
+    }
+  ]
+}

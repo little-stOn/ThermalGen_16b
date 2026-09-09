@@ -1,0 +1,64 @@
+# BU-TIV bbox-conditioned thermal clips with OpenDWM-style resolution mixing.
+# The base clip length stays T=4; smaller resolutions use larger per-rank B.
+schema_version: 1
+
+global_state:
+  butiv_root: ${BUTIV_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.butiv.MotionDataset
+    dataset_root:
+      _class_name: dwm.common.get_state
+      key: butiv_root
+    sequence_length: 4
+    fps_stride_tuples: [[0.0, 1.0]]
+    split: train
+    view_mode: single
+    include_empty_frames: true
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+# OpenDWM format: "H-W": [resolution weight, [[T, per-rank B, option weight]]].
+mix_config:
+  "256-256": [0.6, [[4, 2, 1]]]
+  "192-192": [0.3, [[4, 4, 1]]]
+  "128-128": [0.1, [[4, 6, 1]]]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 说明：
+# 1. 该配置与 butiv.yaml 使用同一数据集和同一 T=4 clip 规则。
+# 2. sampler 只按概率改变 H/W，并按分辨率切换每卡 batch size B=2/4/6；
+#    这里不引入 T 的随机变化，符合当前 OpenDWM 官方配置的实际用法。
+# 3. 省略 dataloader.batch_size；启用 mix_config 后 batch size 由 sampler 管理。
+# 4. 运行：BUTIV_ROOT=/path/to/bu_tiv PYTHONPATH=src python
+#    scripts/prepare/load_dataset_config.py --cfg configs/datasets/butiv_mix.yaml
+#    --loader --batches 8

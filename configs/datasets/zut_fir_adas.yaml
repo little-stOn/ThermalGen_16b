@@ -1,0 +1,67 @@
+# ZUT-FIR-ADAS 16-bit YOLO bbox sequence configuration.
+schema_version: 1
+global_state:
+  zut_root: ${ZUT_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.zut_fir_adas.MotionDataset
+    dataset_root:
+      _class_name: dwm.common.get_state
+      key: zut_root
+    frame_directory: 16BitFrames
+    split: train
+    countries: [Denmark, Germany, Lithuania, Poland]
+    sequence_length: 4
+    fps_stride_tuples: [[0.0, 1.0]]
+    source_fps: 25.0
+    bbox_policy: any
+    min_box_count: 1
+    include_empty_frames: true
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+    normalize_uint16: true
+    uint16_value_range: [0.0, 65535.0]
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. ZUT_ROOT 指向 country/route recording 的根目录；countries 和 split
+#    限定实际使用的地区与 train/val/benchmark recording。
+# 2. frame_directory=16BitFrames 保留原始 16-bit 强度；如果研究低通滤波
+#    版本，显式改为 16BitTransformed，不能在 loader 内隐式切换。
+# 3. bbox_policy=any 只保留含框 clip，同时允许 clip 内有空帧；改为 all
+#    可用于严格的逐帧 bbox 训练。
+# 4. index_cache 缺省自动落在数据根目录的 .dwm_cache，仅缓存路径和标注索引；
+#    images 与 condition 的 tensor 化仍由 Adapter 完成。
+# 5. 演示：ZUT_ROOT=/path/to/zut_fir_adas PYTHONPATH=src python
+#    scripts/prepare/load_dataset_config.py --cfg configs/datasets/zut_fir_adas.yaml
+#    --loader --batches 8

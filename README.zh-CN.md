@@ -59,6 +59,35 @@ examples/native16_sample_requests.json   # 请求格式示例
 tests/                                   # 单元测试和配置契约测试
 ```
 
+## 与模型解耦的热红外视频 Pipeline
+
+`src/dwm/pipelines/` 提供完整的训练/推理生命周期，但不内置生产模型。
+`ThermalVideoBatch.from_loader` 将当前 loader 的
+`vae_images`、`box_condition_images`、嵌套标注、`box_image_sizes` 和 `pts`
+适配为统一的 `[B,T,V,...]` 契约。loader 声明秒或毫秒时间单位后，`pts`
+会统一为秒；未声明单位的旧 batch 按秒解释。像素框仍与原始
+`[height, width]` 成对保留。
+
+后续模型只需实现 `ThermalVideoModel`，并在 `forward_video` 中接收完整的
+`[B,T,V]` clip。Pipeline 负责扩散训练、按有效单元加权的梯度累积、分布式
+归约、classifier-free guidance、预览/评估回调和更新边界 checkpoint。
+编解码及 TIFF/视频写出由注入的模型和 `VideoWriter` 负责；本仓库有意不实现
+新的具体模型。
+
+```python
+from dwm.common import load_pipeline_from_config
+
+pipeline, config = load_pipeline_from_config(
+    "/path/to/pipeline.yaml",
+    model=new_video_model,
+    optimizer=optimizer,
+)
+```
+
+配置中的 `pipeline._class_name` 指向
+`dwm.pipelines.ThermalVideoPipeline`；运行时依赖通过参数注入，保持模型接口与
+数据集编排分离。
+
 安装项目后，还提供以下 CLI：
 
 ```text

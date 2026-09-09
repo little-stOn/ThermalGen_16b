@@ -1,0 +1,63 @@
+# LTIR v1 16-bit thermal sequence configuration.
+schema_version: 1
+global_state:
+  ltir_root: ${LTIR_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.ltir_v1.MotionDataset
+    dataset_root:
+      _class_name: dwm.common.get_state
+      key: ltir_root
+    mode: 16bit
+    sequence_length: 4
+    fps_stride_tuples: [[0.0, 1.0]]
+    source_fps: 25.0
+    bbox_policy: any
+    min_box_count: 1
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+    normalize_uint16: true
+    uint16_value_range: [0.0, 65535.0]
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. LTIR_ROOT 指向 ltir_v1 根目录；mode=16bit 选择带 groundtruth 的
+#    16-bit thermal 序列，sequence_length 和 fps_stride_tuples 生成 clip。
+# 2. 该数据集只有一个视角，所以配置不再声明 view_mode；这是数据结构约束，
+#    不是缺省兼容行为。
+# 3. bbox_condition_settings 只控制框线颜色/宽度；Adapter 负责图像 resize、
+#    ToTensor 和字段命名。return_annotations 保留调试及变长标注。
+# 4. 读取失败、帧数与 groundtruth 行数不一致会在索引阶段直接报错。
+# 5. 演示：LTIR_ROOT=/path/to/ltir_v1 PYTHONPATH=src python
+#    scripts/prepare/load_dataset_config.py --cfg configs/datasets/ltir_v1.yaml
+#    --loader --batches 8

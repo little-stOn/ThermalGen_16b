@@ -1,0 +1,69 @@
+# VIVID++ generated driving-full thermal bbox configuration.
+# Raw ROS bags contain no provider bboxes; use the generated manifest root.
+schema_version: 1
+global_state:
+  vivid_annotation_root: ${VIVID_ANNOTATION_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.vivid_pp.MotionDataset
+    annotation_root:
+      _class_name: dwm.common.get_state
+      key: vivid_annotation_root
+    modality: thermal
+    view_mode: single
+    accepted_statuses: [accepted]
+    min_score: 0.75
+    box_keys: [bbox_thr_lidar_xyxy, bbox_thr_geometry_xyxy, bbox_thr_unexpanded_xyxy, bbox_thr_xyxy]
+    sequence_length: 4
+    fps_stride_tuples: [[0.0, 1.0]]
+    source_fps: 30.0
+    bbox_policy: any
+    min_box_count: 1
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+    normalize_uint16: true
+    uint16_value_range: [0.0, 65535.0]
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. VIVID_ANNOTATION_ROOT 必须指向生成 artifact，而不是原始 ROS bag；
+#    原始 bag 没有 provider bbox，当前配置只加载显式 accepted 记录。
+# 2. box_keys 从 lidar 投影、geometry 修正、未扩展框到普通 thermal 框依次
+#    回退，min_score=0.75 和 accepted_statuses 在索引阶段完成过滤。
+# 3. 当前 modality=thermal、view_mode=single；如果使用生成的 RGB/thermal
+#    配对，可改成 multiview，Adapter 仍要求视角尺寸和通道可堆叠。
+# 4. 训练 transform 只在 DatasetAdapter 中声明；loader 只负责 clip、框和
+#    原始 16-bit 图像，避免同一变换被执行两次。
+# 5. 演示：VIVID_ANNOTATION_ROOT=/path/to/artifact PYTHONPATH=src python
+#    scripts/prepare/load_dataset_config.py --cfg configs/datasets/vivid_pp.yaml
+#    --loader --batches 8

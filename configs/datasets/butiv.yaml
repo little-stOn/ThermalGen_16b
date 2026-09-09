@@ -1,0 +1,62 @@
+# BU-TIV local bbox-conditioned thermal sequence configuration.
+schema_version: 1
+global_state:
+  butiv_root: ${BUTIV_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.butiv.MotionDataset
+    dataset_root:
+      _class_name: dwm.common.get_state
+      key: butiv_root
+    sequence_length: 25
+    fps_stride_tuples: [[0.0, 1.0]]
+    split: train
+    view_mode: single
+    include_empty_frames: true
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. BUTIV_ROOT 是唯一数据路径入口，global_state 先保存它，dataset_root
+#    再通过 get_state 注入 BU-TIV loader；这样不会混入 fs 或数据集注册表。
+# 2. sequence_length/fps_stride_tuples/split/view_mode 控制 clip 长度、起点
+#    采样、子集和视角组织；include_empty_frames=true 保留时间上下文。
+# 3. bbox_condition_settings 只描述如何画本地 2D bbox；Adapter 将原始
+#    images 和 bbox_condition_images 分别 resize/to-tensor，产出模型字段
+#    vae_images 与 box_condition_images。
+# 4. DataLoader 的 CollateFnIgnoring 只保留变长 boxes/labels/track_ids；
+#    不再配置 sample_data、HD map、3D box 或其他外部数据集字段。
+# 5. 演示：BUTIV_ROOT=/path/to/bu_tiv PYTHONPATH=src python
+#    scripts/prepare/load_dataset_config.py --cfg configs/datasets/butiv.yaml
+#    --loader --batches 8

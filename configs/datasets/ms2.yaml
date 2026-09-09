@@ -1,0 +1,71 @@
+# MS2 generated high-confidence thermal bbox configuration.
+# The annotation root is generated output; raw MS2 has no provider bboxes.
+schema_version: 1
+global_state:
+  ms2_root: ${MS2_ROOT}
+  ms2_annotation_root: ${MS2_ANNOTATION_ROOT}
+
+dataset:
+  _class_name: dwm.datasets.common.DatasetAdapter
+  base_dataset:
+    _class_name: dwm.datasets.ms2.MotionDataset
+    dataset_root:
+      _class_name: dwm.common.get_state
+      key: ms2_root
+    annotation_root:
+      _class_name: dwm.common.get_state
+      key: ms2_annotation_root
+    records_file: records.jsonl
+    accepted_statuses: [accepted_highconf]
+    min_score: 0.75
+    sequence_length: 4
+    fps_stride_tuples: [[0.0, 1.0]]
+    source_fps: 10.0
+    bbox_policy: any
+    min_box_count: 1
+    return_annotations: true
+    bbox_condition_settings:
+      pen_width: 2
+    normalize_uint16: true
+    uint16_value_range: [0.0, 65535.0]
+  transform_list:
+    - old_key: images
+      new_key: vae_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+    - old_key: bbox_condition_images
+      new_key: box_condition_images
+      transform:
+        _class_name: torchvision.transforms.Compose
+        transforms:
+          - _class_name: torchvision.transforms.Resize
+            size: [256, 256]
+          - _class_name: torchvision.transforms.ToTensor
+  pop_list: [images, bbox_condition_images]
+
+dataloader:
+  _class_name: torch.utils.data.DataLoader
+  batch_size: 2
+  shuffle: true
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _class_name: dwm.datasets.common.CollateFnIgnoring
+    keys: [boxes, labels, track_ids, sample_ids, sequence]
+
+# 配置讲解：
+# 1. MS2_ROOT 只定位原始 thermal 图像，MS2_ANNOTATION_ROOT 定位已经生成的
+#    high-confidence records.jsonl；两者分开是为了明确 bbox provenance。
+# 2. accepted_statuses=[accepted_highconf] 和 min_score=0.75 在索引阶段过滤
+#    伪标注，sequence_length/fps_stride_tuples 再把通过过滤的帧组成 clip。
+# 3. 这里没有 RGB 投影参数，因为 records.jsonl 中的 boxes 已经是 thermal
+#    像素坐标；再次投影会造成坐标错误。
+# 4. index cache 缓存 JSONL 解析结果；需要重读生成标注时删除 annotation
+#    root 下的 .dwm_cache 或通过 override 关闭缓存。
+# 5. 演示：设置 MS2_ROOT 和 MS2_ANNOTATION_ROOT 后运行
+#    PYTHONPATH=src python scripts/prepare/load_dataset_config.py
+#    --cfg configs/datasets/ms2.yaml --loader --batches 8
